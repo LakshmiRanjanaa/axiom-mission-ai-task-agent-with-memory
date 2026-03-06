@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Task Agent</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .header { background: #2c3e50; color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .task-form { background: #ecf0f1; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .task-item { background: white; border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .completed { background: #d5f4e6; }
+        .prediction { background: #fff3cd; border: 1px solid #ffeeba; padding: 10px; border-radius: 5px; margin: 10px 0; }
+        input, select, button { padding: 8px; margin: 5px; border: 1px solid #ddd; border-radius: 4px; }
+        button { background: #3498db; color: white; cursor: pointer; }
+        button:hover { background: #2980b9; }
+        .complete-btn { background: #27ae60; }
+        .complete-btn:hover { background: #229954; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🤖 AI Task Agent with Memory</h1>
+        <p>Smart task management that learns from your patterns</p>
+    </div>
+
+    <div class="task-form">
+        <h3>Add New Task</h3>
+        <form id="taskForm">
+            <input type="text" id="title" placeholder="Task title" required>
+            <select id="category">
+                <option value="admin">Admin</option>
+                <option value="interview">Interview</option>
+                <option value="content">Content</option>
+                <option value="research">Research</option>
+                <option value="meeting">Meeting</option>
+            </select>
+            <input type="number" id="estimated_duration" placeholder="Est. minutes" min="5" required>
+            <select id="priority">
+                <option value="low">Low Priority</option>
+                <option value="medium" selected>Medium Priority</option>
+                <option value="high">High Priority</option>
+            </select>
+            <button type="submit">Add Task</button>
+        </form>
+        <div id="aiPrediction"></div>
+    </div>
+
+    <div id="tasksList">
+        <h3>Your Tasks</h3>
+        <div id="tasks"></div>
+    </div>
+
+    <script>
+        // Load tasks when page loads
+        document.addEventListener('DOMContentLoaded', loadTasks);
+        
+        // Handle form submission
+        document.getElementById('taskForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const taskData = {
+                title: document.getElementById('title').value,
+                category: document.getElementById('category').value,
+                estimated_duration: parseInt(document.getElementById('estimated_duration').value),
+                priority: document.getElementById('priority').value
+            };
+            
+            try {
+                const response = await fetch('/api/tasks', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(taskData)
+                });
+                
+                const result = await response.json();
+                
+                // Show AI prediction
+                const predictionDiv = document.getElementById('aiPrediction');
+                predictionDiv.innerHTML = `
+                    <div class="prediction">
+                        <strong>🧠 AI Prediction:</strong> ${result.message}
+                    </div>
+                `;
+                
+                // Clear form and reload tasks
+                document.getElementById('taskForm').reset();
+                loadTasks();
+                
+            } catch (error) {
+                alert('Error adding task: ' + error.message);
+            }
+        });
+        
+        async function loadTasks() {
+            try {
+                const response = await fetch('/api/tasks');
+                const tasks = await response.json();
+                
+                const tasksDiv = document.getElementById('tasks');
+                tasksDiv.innerHTML = tasks.map(task => `
+                    <div class="task-item ${task.completed ? 'completed' : ''}">
+                        <h4>${task.title}</h4>
+                        <p><strong>Category:</strong> ${task.category} | 
+                           <strong>Priority:</strong> ${task.priority} | 
+                           <strong>Estimated:</strong> ${task.estimated_duration} min</p>
+                        ${task.actual_duration ? 
+                            `<p><strong>Actual Duration:</strong> ${task.actual_duration} min</p>` : 
+                            `<div>
+                                <input type="number" id="actual_${task.id}" placeholder="Actual minutes" min="1">
+                                <button class="complete-btn" onclick="completeTask(${task.id})">
+                                    Complete Task
+                                </button>
+                            </div>`
+                        }
+                        ${task.completed ? '<p>✅ Completed</p>' : ''}
+                    </div>
+                `).join('');
+                
+            } catch (error) {
+                console.error('Error loading tasks:', error);
+            }
+        }
+        
+        async function completeTask(taskId) {
+            const actualDuration = document.getElementById(`actual_${taskId}`).value;
+            
+            if (!actualDuration) {
+                alert('Please enter the actual duration');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/tasks/${taskId}/complete`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ actual_duration: parseInt(actualDuration) })
+                });
+                
+                const result = await response.json();
+                alert(result.message);
+                loadTasks();
+                
+            } catch (error) {
+                alert('Error completing task: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>
